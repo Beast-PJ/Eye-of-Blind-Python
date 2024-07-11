@@ -2,12 +2,10 @@ import cv2
 import numpy as np
 import pyttsx3
 
-# Initialize text-to-speech engine
 engine = pyttsx3.init()
-engine.setProperty('rate', 125)
+engine.setProperty('rate', 255)
 engine.setProperty('volume', 1.0)
 
-# Initialize YOLO
 yolo = cv2.dnn.readNet("yolov3.weights", "yolov3.cfg")
 classes = []
 
@@ -17,11 +15,61 @@ with open("coco.names", "r") as file:
 layer_names = yolo.getLayerNames()
 output_layers = yolo.getUnconnectedOutLayersNames()
 
-# Open video capture device
 vid = cv2.VideoCapture(0)
 
-# Initialize dictionary to keep track of detected objects
 detected_objects = {}
+
+KNOWN_WIDTH = {
+    "person": 0.45,
+    "car": 1.8,
+    "chair": 0.5,
+    "bicycle": 1.0,
+    "motorbike": 0.8,
+    "bus": 2.5,
+    "bed": 1.8,  
+    "sofa": 1.5,   
+    "table": 1.0, 
+    "refrigerator": 0.7
+}
+FOCAL_LENGTH = 500  
+
+
+
+def calculate_distance_in_feet(known_width, focal_length, per_width):
+    distance_meters = (known_width * focal_length) / per_width
+    distance_feet = distance_meters * 3.28084
+    return distance_feet
+
+def announce_object(label, x, y, w, h):
+    object_center_x = x + w / 2
+    object_center_y = y + h / 2
+    frame_center_x = width / 2
+    frame_center_y = height / 2
+    if object_center_x < frame_center_x - 50:
+        location = "left"
+    elif object_center_x > frame_center_x + 50:
+        location = "right"
+    elif object_center_y < frame_center_y - 50:
+        location = "above"
+    elif object_center_y > frame_center_y + 50:
+        location = "below"
+    else:
+        location = "center"
+    if label in ["car", "bicycle", "motorbike", "bus", "chair", "bed", "sofa", "table", "refrigerator"]:
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 1)
+        distance = calculate_distance_in_feet(KNOWN_WIDTH[label], FOCAL_LENGTH, w)
+        engine.say("! There is a " + label + " " + location + ".  Distance: {:.2f} feet".format(distance))
+        engine.runAndWait()
+    elif label in ["person","cell phone"]:
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 1)
+        distance = calculate_distance_in_feet(KNOWN_WIDTH[label], FOCAL_LENGTH, w)
+        engine.say("There is a " + label + " " + location + ". Distance: {:.2f} feet".format(distance))
+        engine.runAndWait()
+    else:
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 1)
+        engine.say("There is a " + label + " " + location + ".")
+        engine.runAndWait()
+    cv2.putText(img, label, (x, y + 10), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 255), 2)
 
 while True:
     ret, image = vid.read()
@@ -70,44 +118,16 @@ while True:
             print("There is ", label)
 
             if label not in detected_objects:
-                # New object detected, say it
                 detected_objects[label] = (x, y, w, h)
-                if label in ["car", "bicycle", "motorbike", "bus", "chair", "bed", "sofa", "table", "refrigerator"]:
-                    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 1)
-                    engine.say("There is " + label + ", take a left or right.")
-                    engine.runAndWait()
-                elif label == "person":
-                    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 1)
-                    engine.say("There is " + label + ".")
-                    engine.runAndWait()
-                else:
-                    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 1)
-                    engine.say("There is " + label + ".")
-                    engine.runAndWait()
-                cv2.putText(img, label, (x, y + 10), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 255), 2)
+                announce_object(label, x, y, w, h)
             else:
-                # Object already detected, check if its position changed
                 prev_x, prev_y, prev_w, prev_h = detected_objects[label]
                 if abs(x - prev_x) > 50 or abs(y - prev_y) > 50:
-                    # Position changed, update position and say it
                     detected_objects[label] = (x, y, w, h)
-                    if label in ["car", "bicycle", "motorbike", "bus", "chair", "bed", "sofa", "table", "refrigerator"]:
-                        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 1)
-                        engine.say("There is " + label + ", take a left or right.")
-                        engine.runAndWait()
-                    elif label == "person":
-                        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 1)
-                        engine.say("There is " + label + ".")
-                        engine.runAndWait()
-                    else:
-                        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 1)
-                        engine.say("There is " + label + ".")
-                        engine.runAndWait()
-                    cv2.putText(img, label, (x, y + 10), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 255), 2)
+                    announce_object(label, x, y, w, h)
 
     cv2.imshow("image.jpg", img)
     cv2.imwrite("output.jpg", img)
 
-# Release video capture device
 vid.release()
 cv2.destroyAllWindows()
