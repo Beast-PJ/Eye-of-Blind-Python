@@ -1,61 +1,113 @@
-import cv2 as cv
+import cv2
 import numpy as np
+import pyttsx3
 
-cap = cv.VideoCapture(0)
-whT = 320
-confThreshold =0.5
-nmsThreshold= 0.2
+# Initialize text-to-speech engine
+engine = pyttsx3.init()
+engine.setProperty('rate', 125)
+engine.setProperty('volume', 1.0)
 
-#### LOAD MODEL
-## Coco Names
-classesFile = "coco.names"
-classNames = []
-with open(classesFile, 'rt') as f:
-    classNames = f.read().rstrip('n').split('n')
-print(classNames)
-## Model Files
-modelConfiguration = "yolov3.cfg"
-modelWeights = "yolov3.weights"
-net = cv.dnn.readNetFromDarknet(modelConfiguration, modelWeights)
-net.setPreferableBackend(cv.dnn.DNN_BACKEND_OPENCV)
-net.setPreferableTarget(cv.dnn.DNN_TARGET_CPU)
+# Initialize YOLO
+yolo = cv2.dnn.readNet("yolov3.weights", "yolov3.cfg")
+classes = []
 
-def findObjects(outputs,img):
-    hT, wT, cT = img.shape
-    bbox = []
-    classIds = []
-    confs = []
-    for output in outputs:
-        for det in output:
-            scores = det[5:]
-            classId = np.argmax(scores)
-            confidence = scores[classId]
-            if confidence > confThreshold:
-                w,h = int(det[2]*wT) , int(det[3]*hT)
-                x,y = int((det[0]*wT)-w/2) , int((det[1]*hT)-h/2)
-                bbox.append([x,y,w,h])
-                classIds.append(classId)
-                confs.append(float(confidence))
+with open("coco.names", "r") as file:
+    classes = [line.strip() for line in file.readlines()]
 
-    indices = cv.dnn.NMSBoxes(bbox, confs, confThreshold, nmsThreshold)
+layer_names = yolo.getLayerNames()
+output_layers = yolo.getUnconnectedOutLayersNames()
 
-    for i in indices:
-        i = i[0]
-        box = bbox[i]
-        x, y, w, h = box[0], box[1], box[2], box[3]
-        # print(x,y,w,h)
-        cv.rectangle(img, (x, y), (x+w,y+h), (255, 0 , 255), 2)
-        cv.putText(img,f'{classNames[classIds[i]].upper()} {int(confs[i]*100)}%',
-                  (x, y-10), cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+# Open video capture device
+vid = cv2.VideoCapture(0)
+
+# Initialize dictionary to keep track of detected objects
+detected_objects = {}
 
 while True:
-    success, img = cap.read()
-    blob = cv.dnn.blobFromImage(img, 1 / 255, (whT, whT), [0, 0, 0], 1, crop=False)
-    net.setInput(blob)
-    layersNames = net.getLayerNames()
-    # outputNames = [(layersNames) for i in net.getUnconnectedOutLayers()]
-    outputs = net.forward(layersNames)
-    findObjects(outputs,img)
+    ret, image = vid.read()
+    cv2.imshow('image', image)
+    
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+        
+    cv2.imwrite('route.jpg', image)
+    
+    name = "route.jpg"
+    img = cv2.imread(name)
+    height, width, channels = img.shape
 
-    cv.imshow('Image', img)
-    cv.waitKey(1)
+    blob = cv2.dnn.blobFromImage(img, 0.00392, (416, 416), (0, 0, 0), True, crop=False)
+
+    yolo.setInput(blob)
+    outputs = yolo.forward(output_layers)
+
+    class_ids = []
+    confidences = []
+    boxes = []
+    for output in outputs:
+        for detection in output:
+            scores = detection[5:]
+            class_id = np.argmax(scores)
+            confidence = scores[class_id]
+            if confidence > 0.5:
+                center_x = int(detection[0] * width)
+                center_y = int(detection[1] * height)
+                w = int(detection[2] * width)
+                h = int(detection[3] * height)
+
+                x = int(center_x - w / 2)
+                y = int(center_y - h / 2)
+
+                boxes.append([x, y, w, h])
+                confidences.append(float(confidence))
+                class_ids.append(class_id)
+
+    indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
+    for i in range(len(boxes)):
+        if i in indexes:
+            x, y, w, h = boxes[i]
+            label = str(classes[class_ids[i]])
+            print("There is ", label)
+
+            if label not in detected_objects:
+                # New object detected, say it
+                detected_objects[label] = (x, y, w, h)
+                if label in ["car", "bicycle", "motorbike", "bus", "chair", "bed", "sofa", "table", "refrigerator"]:
+                    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 1)
+                    engine.say("There is " + label + ", take a left or right.")
+                    engine.runAndWait()
+                elif label == "person":
+                    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 1)
+                    engine.say("There is " + label + ".")
+                    engine.runAndWait()
+                else:
+                    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 1)
+                    engine.say("There is " + label + ".")
+                    engine.runAndWait()
+                cv2.putText(img, label, (x, y + 10), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 255), 2)
+            else:
+                # Object already detected, check if its position changed
+                prev_x, prev_y, prev_w, prev_h = detected_objects[label]
+                if abs(x - prev_x) > 50 or abs(y - prev_y) > 50:
+                    # Position changed, update position and say it
+                    detected_objects[label] = (x, y, w, h)
+                    if label in ["car", "bicycle", "motorbike", "bus", "chair", "bed", "sofa", "table", "refrigerator"]:
+                        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 1)
+                        engine.say("There is " + label + ", take a left or right.")
+                        engine.runAndWait()
+                    elif label == "person":
+                        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 1)
+                        engine.say("There is " + label + ".")
+                        engine.runAndWait()
+                    else:
+                        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 1)
+                        engine.say("There is " + label + ".")
+                        engine.runAndWait()
+                    cv2.putText(img, label, (x, y + 10), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 255), 2)
+
+    cv2.imshow("image.jpg", img)
+    cv2.imwrite("output.jpg", img)
+
+# Release video capture device
+vid.release()
+cv2.destroyAllWindows()
