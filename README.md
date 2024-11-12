@@ -102,12 +102,6 @@ We welcome contributions from the community! Whether you’re reporting bugs, su
 
 ---
 
-## 📜 **License**
-
-This project is licensed under the **MIT License**. For more information, refer to the [LICENSE](LICENSE) file.
-
----
-
 ## 📧 **Contact Us**
 
 For any questions, inquiries, or collaborations, please reach out at **p.jadhav61657@gmail.com**. Together, let’s make technology more accessible for everyone!
