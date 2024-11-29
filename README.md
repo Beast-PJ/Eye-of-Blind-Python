@@ -20,17 +20,9 @@
 
 - 🌐 **Offline Mode**: Operates smoothly without an internet connection, making it reliable in any environment.
 
-- 👋 **Gesture Control**: Issue commands through intuitive gestures, enabling hands-free control for maximum convenience.
-
 - 🚨 **Safety Alerts**: Warns users about **hazards** like stairs, obstacles, and moving vehicles, enhancing situational awareness.
 
-- 📍 **Location Awareness**: Integrates seamlessly with GPS, providing **location-based guidance** to help users navigate complex environments.
-
-- 👤 **Multiple User Profiles**: Supports multiple user profiles, allowing users to save personalized settings and preferences.
-
 - 🌡️ **Environmental Awareness**: Detects changes in the environment, such as lighting shifts or new obstacles, providing timely feedback.
-
-- 👓 **Wearable Tech Integration**: Easily pairs with wearable devices like **smart glasses** or **wristbands** for enhanced, hands-free functionality.
 
 - 🔄 **Feedback Loops**: Allows users to report issues or suggest improvements, facilitating continuous updates and enhancements.
 
